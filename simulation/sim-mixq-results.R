@@ -7,7 +7,7 @@ out <- map2(cases, out, \(x, y) c(x, "out" = list(y))) |>
   list_transpose() |>
   as_tibble() |>
   unnest(cols = "out") |>
-  pivot_longer(cols = starts_with("p"), names_prefix = "p_", names_to = "p", values_to = "rmse") |>
+  pivot_longer(cols = starts_with("p"), names_prefix = "p_", names_to = "u", values_to = "rmse") |>
   mutate(method = factor(method,
                          levels = c("mixq", "qr", "qrcm", "gev", "egp", "evgam_gev", "evgam_gpd"),
                          labels = c("mixQ", "QR", "QRCM", "GEV-res", "EGP-res", "GEV-evgam", "GPD-evgam")))
@@ -17,7 +17,7 @@ out |>
   group_by(method) |>
   summarise(sum(is.na(rmse)))
 out |>
-  filter(method == "EGP-res", p == 0.95) |>
+  filter(method == "EGP-res", u == 0.95) |>
   group_by(dgp, n) |>
   summarise(sum(is.na(rmse)))
 
@@ -25,13 +25,12 @@ out |>
 dgp <- c("pareto","logn", "egp")
 
 p_median <- map(dgp, \(x) out |>
-               filter(dgp == x,
-                      method != "mixq2") |>
-               group_by(n, p) |>
+               filter(dgp == x) |>
+               group_by(n, u) |>
                mutate(rmse = rmse / median(rmse, na.rm = TRUE)) |>
                ggplot(aes(x = method, y = rmse))+
                geom_boxplot(fill = 2, outlier.shape = 1, width = 0.5, staplewidth  = 0.5)+
-               facet_grid(rows = vars(p),
+               facet_grid(rows = vars(u),
                           cols = vars(n),
                           labeller = \(x) label_both(labels = x, sep = " = "),
                           scales = "free")+
@@ -51,33 +50,33 @@ map2(p_median, dgp, \(x, y) ggsave(plot = x,
 gt_out <- purrr::map(dgp,
            \(x) out |>
              filter(dgp == x) |>
-             group_by(n, p, method) |>
+             group_by(n, u, method) |>
              summarise("rmse" = mean(rmse, na.rm = TRUE), .groups = "drop") |>
              pivot_wider(names_from = method, values_from = rmse) |>
-             arrange(desc(p), n) |>
+             arrange(desc(u), n) |>
              gt() |>
-             fmt_number(columns = -c(n, p), decimals = 2))
+             fmt_number(columns = -c(n, u), decimals = 2))
 
 map2(dgp, gt_out, \(x, y) gtsave(data = y, filename = paste0("output/sim-mixq-rmse-tab-",x,".html")))
+
 walk(gt_out, \(x) x |>
-      as_latex() |>
-      as.character() |>
-      writeLines()
-)
+       as_latex() |>
+       as.character() |>
+       writeLines())
 
 # not used
 # p_diff <- map(dgp, \(x) out |>
 #                 filter(dgp == x,
 #                        method != "mixq2") |>
 #                 pivot_wider(names_from = method, values_from = rmse) |>
-#                 mutate(across(-c(dgp, n, p, rep), \(x) (x - mixQ))) |>
+#                 mutate(across(-c(dgp, n, u, rep), \(x) (x - mixQ))) |>
 #                 select(-mixQ) |>
-#                 pivot_longer(cols = -c(dgp, n, p, rep), values_to = "rmse", names_to = "method") |>
+#                 pivot_longer(cols = -c(dgp, n, u, rep), values_to = "rmse", names_to = "method") |>
 #                 mutate(method = factor(method, levels = c("QR", "QRCM", "GEV"))) |>
 #                 ggplot(aes(x = method, y = rmse))+
 #                 geom_hline(yintercept = 0, lty = 3)+
 #                 geom_boxplot(fill = 2, outlier.shape = 1, width = 0.5, staplewidth  = 0.5)+
-#                 facet_grid(rows = vars(p),
+#                 facet_grid(rows = vars(u),
 #                            cols = vars(n),
 #                            labeller = \(x) label_both(labels = x, sep = " = "),
 #                            scales = "free")+
